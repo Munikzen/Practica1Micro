@@ -1,44 +1,198 @@
-	.arch armv7-m
-	.fpu softvfp
-	.eabi_attribute 20, 1
-	.eabi_attribute 21, 1
-	.eabi_attribute 23, 3
-	.eabi_attribute 24, 1
-	.eabi_attribute 25, 1
-	.eabi_attribute 26, 2
-	.eabi_attribute 30, 6
-	.eabi_attribute 34, 1
-	.eabi_attribute 18, 4
-	.file	"suma.c"
-	.text
-	.align	1
-	.global	main
-	.syntax unified
-	.thumb
-	.thumb_func
-	.type	main, %function
-main:
-	@ args = 0, pretend = 0, frame = 16
-	@ frame_needed = 1, uses_anonymous_args = 0
-	@ link register save eliminated.
-	push	{r7}
-	sub	sp, sp, #20
+/* This program turns on and off 5 leds embedded in a protoboard through. The leds are 
+ * connected to the following pins: PA0, PA1, PA2, PA3, PA4. This pins works as a GPIO,
+ * then they must be configured at assembly level, through the following registers:
+ * 1) RCC register,
+ * 2) GPIOC_CRL register, 
+ * 3) GPIOC_CRH register, and
+ * 4) GPIOC_ODR register.
+ * 
+ * Author: Brandon Chavez Salaverria.
+ */
+
+.include "gpio.inc" @ Includes definitions from gpio.inc file
+
+.thumb              @ Assembles using thumb mode
+.cpu cortex-m3      @ Generates Cortex-M3 instructions
+.syntax unified
+
+.include "nvic.inc"
+
+addition:
+        # Prologue
+        push    {r7, lr}
+        sub     sp, sp, #8
+        add     r7, sp, #0
+        str     r0, [r7, #4] @ backs up counter argument
+        # Function body
+        ldr     r0, [r7, #4] @ r0 <- counter
+        adds    r0, r0, #1 
+        str     r0, [r7, #4] @ counter++;
+        ldr     r0, [r7, #4]
+        mov     r1, #31 @ if counter < 31
+        cmp     r0, r1
+        bgt     reset @ counter = 0;
+
+        ldr     r1, =GPIOA_ODR
+        ldr     r0, [r7, #4]
+        str     r0, [r1]
+        mov     r0, #500
+        bl      delay
+        ldr     r0, [r7, #4]
+
+        # Epilogue
+        adds    r7, r7, #8
+        mov     sp, r7
+        pop     {r7, lr}
+        bx      lr
+
+subtraction:
+        # Prologue
+        push    {r7, lr}
+        sub     sp, sp, #8
+        add     r7, sp, #0
+        str     r0, [r7, #4] @ backs up counter argument
+        # Function body
+        ldr     r0, [r7, #4] @ r0 <- counter
+        subs    r0, r0, #1
+        str     r0, [r7, #4] @ counter--;
+        ldr     r0, [r7, #4]
+        mov     r1, #0 @ if counter < 0
+        cmp     r0, r1
+        ble     reset @ counter = 0;
+
+        ldr     r1, =GPIOA_ODR
+        ldr     r0, [r7, #4]
+        str     r0, [r1]
+        mov     r0, #500
+        bl      delay
+        ldr     r0, [r7, #4]
+
+        # Epilogue
+        adds    r7, r7, #8
+        mov     sp, r7
+        pop     {r7, lr}
+        bx      lr
+
+reset:
+        # Prologue
+        push    {r7, lr}
+        sub     sp, sp, #8
+        add     r7, sp, #0
+        str     r0, [r7, #4] @ backs up counter
+        # Function body
+        mov     r0, #0
+        str     r0, [r7, #4] @ resets counter to 0
+        ldr     r0, =GPIOA_ODR
+        ldr     r3, [r7, #4]
+        str     r3, [r0] 
+        ldr     r0, [r7, #4]
+        # Epilogue
+        adds    r7, r7, #8
+        mov     sp, r7
+        pop     {r7, lr}
+        bx      lr
+
+delay:
+        # Prologue
+        push    {r7} @ backs r7 up
+        sub     sp, sp, #28 @ reserves a 32-byte function frame
+        add     r7, sp, #0 @ updates r7
+        str     r0, [r7] @ backs ms up
+        # Function body
+        mov     r0, #255 @ ticks = 255, adjust to achieve 1 ms delay
+        str     r0, [r7, #16]
+        # for (i = 0; i < ms; i++)
+        mov     r0, #0 @ i = 0;
+        str     r0, [r7, #8]
+        b       F3
+        # for (j = 0; j < tick; j++)
+F4:     mov     r0, #0 @ j = 0;
+        str     r0, [r7, #12]
+        b       F5
+F6:     ldr     r0, [r7, #12] @ j++;
+        add     r0, #1
+        str     r0, [r7, #12]
+F5:     ldr     r0, [r7, #12] @ j < ticks;
+        ldr     r1, [r7, #16]
+        cmp     r0, r1
+        blt     F6
+        ldr     r0, [r7, #8] @ i++;
+        add     r0, #1
+        str     r0, [r7, #8]
+F3:     ldr     r0, [r7, #8] @ i < ms
+        ldr     r1, [r7]
+        cmp     r0, r1
+        blt     F4
+        # Epilogue
+        adds    r7, r7, #28
+        mov     sp, r7
+        pop     {r7}
+        bx      lr
+
+setup:
+        # Prologue
+        push    {r7, lr}
+	sub	sp, sp, #8
 	add	r7, sp, #0
-	movs	r3, #3
-	str	r3, [r7, #4]
-	movs	r3, #7
-	str	r3, [r7, #8]
-	ldr	r2, [r7, #4]
-	ldr	r3, [r7, #8]
-	add	r3, r3, r2
-	str	r3, [r7, #12]
-	ldr	r3, [r7, #12]
-	mov	r0, r3
-	adds	r7, r7, #20
-	mov	sp, r7
-	@ sp needed
-	pop	{r7}
-	bx	lr
-	.size	main, .-main
-	.ident	"GCC: (Ubuntu 11.3.0-1ubuntu1~22.04) 11.3.0"
-	.section	.note.GNU-stack,"",%progbits
+
+        # enabling clock in port B
+        ldr     r0, =RCC_APB2ENR @ move 0x40021018 to r0
+        mov     r3, 0x4 @ loads 16 in r1 to enable clock in port A (IOPC bit)
+        str     r3, [r0] @ M[RCC_APB2ENR] gets 4
+
+        # set pin 0 to 4 as digital output
+        ldr     r0, =GPIOA_CRL @ moves address of GPIOA_CRL register to r0
+        ldr     r3, =0x44433333 @ PA0, PA1, PA2, PA3, PA4: output push-pull, max speed 50 MHz
+        str     r3, [r0] @ M[GPIOA_CRL] gets 0x44433333
+
+        # set pins 8-9 as digital input
+        ldr     r0, =GPIOA_CRH @ moves address of GPIOA_CRH register to r0
+        ldr     r3, =0x44444488 @ : input pull-down
+        str     r3, [r0] @ M[GPIOB_CRH] gets 0x44444488
+
+        # set led status initial value
+        ldr     r0, =GPIOA_ODR @ moves address of GPIOA_ODR register to r0
+        mov     r3, #0
+        str     r3, [r0]
+
+        # counter = 0;
+        mov     r0, #0
+        str     r0, [r7]
+loop:   
+        # if(2 buttons are pressed)
+        ldr     r0, =GPIOA_IDR
+        ldr     r1, [r0]
+        and     r1, 0x300
+        cmp     r1, 0x300
+        bne     .L1
+
+        bl      reset
+        str     r0, [r7]
+        mov     r0, #500
+        bl      delay
+
+        
+.L1:    # else if(addition button is pressed)
+        ldr     r0, =GPIOA_IDR
+        ldr     r0, [r0]
+        and     r0, 0x100
+        cmp     r0, 0x100
+        bne     .L2
+
+        ldr     r0, [r7]
+        bl      addition
+        str     r0, [r7]
+
+.L2:    # else if(subtraction button is pressed)
+        ldr     r0, =GPIOA_IDR
+        ldr     r0, [r0]
+        and     r0, 0x200
+        cmp     r0, 0x200
+        bne     .L3
+
+        ldr     r0, [r7]
+        bl      subtraction
+        str     r0, [r7]
+.L3:
+        b       loop
+        
